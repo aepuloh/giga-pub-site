@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iklan Giga Pub</title>
+    <!-- Script iklan dari Giga Pub -->
+    <script src="https://ad.gigapub.tech/script?id=1512"></script>
+</head>
+<body>
+    <h1>Selamat Datang</h1>
+    <p>Iklan akan muncul otomatis...</p>
+
+    <script>
+        // Tunggu sampai script iklan sudah siap
+        document.addEventListener("DOMContentLoaded", function() {
+            // Munculkan iklan otomatis
+            if (typeof window.showGiga === "function") {
+                window.showGiga("main");
+                console.log("Iklan ditampilkan otomatis");
+            } else {
+                console.error("Fungsi showGiga belum tersedia");
+            }
+
+            // Optional: tutup iklan setelah 5 detik
+            setTimeout(function() {
+                let closeBtn = document.querySelector(".giga-close");
+                if (closeBtn) closeBtn.click();
+            }, 5000); // 5000ms = 5 detik
+        });
+    </script>
+</body>
+</html>
