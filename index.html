@@ -1,192 +1,144 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Game + GigaPub Ads</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      overflow: hidden;
-      height: 100%;
+<meta charset="UTF-8">
+<title>Game + Giga Ads</title>
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
     }
-    canvas {
-      display: block;
-      background: #111;
+    #gameCanvas {
+        display: block;
+        margin: auto;
+        background: #222;
     }
-    #timer {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 28px;
-      color: white;
-      font-family: Arial, sans-serif;
+    #timerContainer {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100px;
+        height: 100px;
     }
-  </style>
+    #timerCircle {
+        transform: rotate(-90deg);
+    }
+    #timerText {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 24px;
+        color: white;
+        font-weight: bold;
+    }
+    .pulse {
+        animation: pulse 0.5s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: translate(-50%, -50%) scale(1); }
+        50% { transform: translate(-50%, -50%) scale(1.1); }
+        100% { transform: translate(-50%, -50%) scale(1); }
+    }
+</style>
 </head>
 <body>
-  <div id="timer"></div>
-  <canvas id="gameCanvas"></canvas>
 
-  <!-- GigaPub Script -->
-  <script src="https://ad.gigapub.tech/script?id=1511"></script>
+<svg id="timerContainer">
+    <circle cx="50" cy="50" r="45" stroke="#444" stroke-width="8" fill="none"/>
+    <circle id="timerCircle" cx="50" cy="50" r="45" stroke="green" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="0"/>
+    <text id="timerText">10</text>
+</svg>
 
-  <!-- Sounds -->
-  <audio id="shootSound" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
-  <audio id="hitSound" src="https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3"></audio>
-  <audio id="coinSound" src="https://assets.mixkit.co/active_storage/sfx/1995/1995-preview.mp3"></audio>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const timerEl = document.getElementById("timer");
-    const shootSound = document.getElementById("shootSound");
-    const hitSound = document.getElementById("hitSound");
-    const coinSound = document.getElementById("coinSound");
+<audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+<audio id="gameOverSound" src="https://www.soundjay.com/button/beep-09.wav"></audio>
 
-    let gameType = 0; // 0 = shoot, 1 = catch
-    let timer = 30;
-    let targets = [];
-    let coins = [];
-    let score = 0;
+<script src="https://ad.gigapub.tech/script?id=1511"></script>
+<script>
+let currentGame = "shoot"; // "shoot" or "catch"
+let timerDuration = 10;
+let timer = timerDuration;
+let timerInterval;
+let ctx = document.getElementById("gameCanvas").getContext("2d");
+let beep = document.getElementById("beepSound");
+let gameOver = document.getElementById("gameOverSound");
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    function random(min, max) {
-      return Math.random() * (max - min) + min;
+// Draw game based on currentGame
+function drawGame() {
+    ctx.clearRect(0, 0, 800, 500);
+    if (currentGame === "shoot") {
+        ctx.fillStyle = "white";
+        ctx.font = "30px Arial";
+        ctx.fillText("🎯 Game Tembak Target", 250, 250);
+    } else {
+        ctx.fillStyle = "yellow";
+        ctx.font = "30px Arial";
+        ctx.fillText("💰 Game Tangkap Koin", 250, 250);
     }
+}
 
-    function startGame() {
-      timer = 30;
-      score = 0;
-      if (gameType === 0) {
-        spawnTargets();
-      } else {
-        spawnCoins();
-      }
-      gameLoop();
-      countdown();
+// Update timer circle
+function updateTimerDisplay() {
+    let percent = timer / timerDuration;
+    let circle = document.getElementById("timerCircle");
+    let offset = 283 - (283 * percent);
+    circle.setAttribute("stroke-dashoffset", offset);
+    
+    if (percent > 0.5) circle.setAttribute("stroke", "green");
+    else if (percent > 0.2) circle.setAttribute("stroke", "orange");
+    else circle.setAttribute("stroke", "red");
+
+    let timerText = document.getElementById("timerText");
+    timerText.textContent = timer;
+    if (timer <= 3) {
+        timerText.classList.add("pulse");
+        beep.play();
+    } else {
+        timerText.classList.remove("pulse");
     }
+}
 
-    function spawnTargets() {
-      targets = [];
-      for (let i = 0; i < 5; i++) {
-        targets.push({
-          x: random(50, canvas.width - 50),
-          y: random(50, canvas.height - 50),
-          r: 30,
-          dx: random(-2, 2),
-          dy: random(-2, 2)
-        });
-      }
-    }
-
-    function spawnCoins() {
-      coins = [];
-      for (let i = 0; i < 5; i++) {
-        coins.push({
-          x: random(50, canvas.width - 50),
-          y: -50,
-          r: 20,
-          dy: random(2, 5)
-        });
-      }
-    }
-
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (gameType === 0) {
-        ctx.fillStyle = "red";
-        targets.forEach(t => {
-          ctx.beginPath();
-          ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
-          ctx.fill();
-          t.x += t.dx;
-          t.y += t.dy;
-          if (t.x < t.r || t.x > canvas.width - t.r) t.dx *= -1;
-          if (t.y < t.r || t.y > canvas.height - t.r) t.dy *= -1;
-        });
-      } else {
-        ctx.fillStyle = "gold";
-        coins.forEach(c => {
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.fill();
-          c.y += c.dy;
-          if (c.y > canvas.height + c.r) {
-            c.y = -50;
-            c.x = random(50, canvas.width - 50);
-          }
-        });
-      }
-      requestAnimationFrame(gameLoop);
-    }
-
-    function countdown() {
-      timerEl.innerText = timer;
-      const interval = setInterval(() => {
+// Start the timer
+function startTimer() {
+    timer = timerDuration;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
         timer--;
-        timerEl.innerText = timer;
+        updateTimerDisplay();
         if (timer <= 0) {
-          clearInterval(interval);
-          endGame();
+            clearInterval(timerInterval);
+            gameOver.play();
+            showAd();
         }
-      }, 1000);
-    }
+    }, 1000);
+}
 
-    function endGame() {
-      window.showGiga()
-        .then(() => {
-          gameType = (gameType + 1) % 2;
-          startGame();
-        })
-        .catch(() => {
-          gameType = (gameType + 1) % 2;
-          startGame();
-        });
-    }
-
-    canvas.addEventListener("click", e => {
-      if (gameType === 0) {
-        shootSound.play();
-        const mx = e.clientX;
-        const my = e.clientY;
-        targets = targets.filter(t => {
-          const dist = Math.hypot(mx - t.x, my - t.y);
-          if (dist < t.r) {
-            hitSound.play();
-            score++;
-            return false;
-          }
-          return true;
-        });
-        if (targets.length < 5) spawnTargets();
-      } else {
-        const mx = e.clientX;
-        const my = e.clientY;
-        coins = coins.filter(c => {
-          const dist = Math.hypot(mx - c.x, my - c.y);
-          if (dist < c.r) {
-            coinSound.play();
-            score++;
-            return false;
-          }
-          return true;
-        });
-      }
+// Show Giga ad then switch game
+function showAd() {
+    window.showGiga()
+    .then(() => {
+        currentGame = (currentGame === "shoot") ? "catch" : "shoot";
+        startGame();
+    })
+    .catch(e => {
+        currentGame = (currentGame === "shoot") ? "catch" : "shoot";
+        startGame();
     });
+}
 
-    // Fullscreen otomatis
-    document.addEventListener("click", () => {
-      if (document.fullscreenElement == null) {
-        canvas.requestFullscreen();
-      }
-    });
+// Start game
+function startGame() {
+    drawGame();
+    startTimer();
+}
 
-    startGame();
-  </script>
+// Init
+startGame();
+</script>
 </body>
 </html>
