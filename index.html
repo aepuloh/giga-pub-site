@@ -1,144 +1,366 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-<meta charset="UTF-8">
-<title>Game + Giga Ads</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Game Bergantian + Timer Melingkar + Giga.pub Ads</title>
 <style>
-    body {
-        margin: 0;
-        background: #111;
-        overflow: hidden;
-        font-family: Arial, sans-serif;
-    }
-    #gameCanvas {
-        display: block;
-        margin: auto;
-        background: #222;
-    }
-    #timerContainer {
-        position: absolute;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100px;
-        height: 100px;
-    }
-    #timerCircle {
-        transform: rotate(-90deg);
-    }
-    #timerText {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 24px;
-        color: white;
-        font-weight: bold;
-    }
-    .pulse {
-        animation: pulse 0.5s infinite;
-    }
-    @keyframes pulse {
-        0% { transform: translate(-50%, -50%) scale(1); }
-        50% { transform: translate(-50%, -50%) scale(1.1); }
-        100% { transform: translate(-50%, -50%) scale(1); }
-    }
+  :root { --bg:#07121a; --accent:#ffcc00; --muted:#334155; }
+  html,body { height:100%; margin:0; background:var(--bg); color:#fff; font-family:Inter, Arial, sans-serif; overflow:hidden; }
+  #canvas { display:block; width:100vw; height:100vh; background:linear-gradient(180deg,#06101a,#08111a); }
+  #overlayStart {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:999;
+    background:linear-gradient(180deg,rgba(2,6,23,0.6),rgba(2,6,23,0.85));
+    flex-direction:column; gap:12px;
+  }
+  #btnStart { background:var(--accent); border:none; padding:14px 22px; border-radius:10px; color:#111; font-weight:700; cursor:pointer; }
+  #hud { position:fixed; top:12px; left:12px; z-index:900; background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; display:flex; gap:12px; align-items:center; }
+  #hud b{color:var(--accent);}
+  #timerWrap { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:900; width:90px; height:90px; }
+  #centerMessage { position:fixed; left:50%; top:18%; transform:translateX(-50%); text-align:center; z-index:900; }
+  #adOverlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:1000; background:rgba(0,0,0,0.85); color:#fff; font-size:20px; }
+  #skipBtn { position:fixed; right:14px; top:14px; z-index:950; padding:8px 10px; border-radius:8px; border:none; background:#e53935; color:#fff; cursor:pointer; display:none; }
+  .pulse { animation: pulse 0.6s infinite; }
+  @keyframes pulse { 0%{ transform:scale(1);}50%{transform:scale(1.12);}100%{transform:scale(1);} }
 </style>
 </head>
 <body>
+<canvas id="canvas"></canvas>
 
-<svg id="timerContainer">
-    <circle cx="50" cy="50" r="45" stroke="#444" stroke-width="8" fill="none"/>
-    <circle id="timerCircle" cx="50" cy="50" r="45" stroke="green" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="0"/>
-    <text id="timerText">10</text>
-</svg>
+<div id="hud">
+  <div>Mode: <b id="modeLabel">—</b></div>
+  <div>Ronde: <b id="roundLabel">0</b></div>
+  <div>Skor: <b id="scoreLabel">0</b></div>
+</div>
 
-<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="timerWrap" aria-hidden="true">
+  <svg viewBox="0 0 100 100" width="100" height="100" id="timerSvg">
+    <circle cx="50" cy="50" r="45" stroke="#2b3946" stroke-width="8" fill="none"/>
+    <circle id="timerCircle" cx="50" cy="50" r="45" stroke="#3ddc84" stroke-width="8" fill="none"
+            stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="0"/>
+    <text id="timerText" x="50" y="56" text-anchor="middle" font-size="20" fill="#fff">30</text>
+  </svg>
+</div>
 
-<audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
-<audio id="gameOverSound" src="https://www.soundjay.com/button/beep-09.wav"></audio>
+<div id="centerMessage">
+  <div id="msgTitle" style="font-size:20px;margin-bottom:6px">Klik MULAI untuk masuk fullscreen & audio</div>
+  <button id="btnStart">MULAI</button>
+</div>
 
+<button id="skipBtn">Tampilkan Iklan (Test)</button>
+
+<div id="adOverlay">Menampilkan Iklan... <div style="font-size:14px;margin-top:6px;color:#ddd">(tutup iklan untuk melanjutkan)</div></div>
+
+<!-- Giga.pub script (ID kamu sudah terpasang 1511) -->
 <script src="https://ad.gigapub.tech/script?id=1511"></script>
+
 <script>
-let currentGame = "shoot"; // "shoot" or "catch"
-let timerDuration = 10;
-let timer = timerDuration;
-let timerInterval;
-let ctx = document.getElementById("gameCanvas").getContext("2d");
-let beep = document.getElementById("beepSound");
-let gameOver = document.getElementById("gameOverSound");
+/* ====== Config ====== */
+const ROUND_DURATION = 30;      // durasi tiap ronde (detik)
+const BEEP_START_SECONDS = 3;   // mulai beep di sekian detik terakhir
+/* ==================== */
 
-// Draw game based on currentGame
-function drawGame() {
-    ctx.clearRect(0, 0, 800, 500);
-    if (currentGame === "shoot") {
-        ctx.fillStyle = "white";
-        ctx.font = "30px Arial";
-        ctx.fillText("🎯 Game Tembak Target", 250, 250);
-    } else {
-        ctx.fillStyle = "yellow";
-        ctx.font = "30px Arial";
-        ctx.fillText("💰 Game Tangkap Koin", 250, 250);
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const modeLabel = document.getElementById('modeLabel');
+const roundLabel = document.getElementById('roundLabel');
+const scoreLabel = document.getElementById('scoreLabel');
+const timerCircle = document.getElementById('timerCircle');
+const timerText = document.getElementById('timerText');
+const btnStart = document.getElementById('btnStart');
+const centerMessage = document.getElementById('centerMessage');
+const adOverlay = document.getElementById('adOverlay');
+const skipBtn = document.getElementById('skipBtn');
+
+let width=0, height=0;
+function fit() { width = canvas.width = innerWidth; height = canvas.height = innerHeight; }
+fit(); window.addEventListener('resize', fit);
+
+// AudioContext for beep
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+function playBeep(freq=880, time=0.12) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.value = 0.0001;
+  o.connect(g); g.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
+  o.start(now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + time);
+  o.stop(now + time + 0.02);
+}
+
+// Game state
+let currentGame = 'shoot'; // 'shoot' or 'catch'
+let round = 0;
+let score = 0;
+let remaining = ROUND_DURATION;
+let playing = false;
+let spawnInterval = null;
+let animationId = null;
+
+// Objects
+let targets = []; // {x,y,r,vx,vy}
+let coins = [];   // {x,y,r,dy}
+
+/* ====== Helpers ====== */
+function rand(min,max){ return Math.random()*(max-min)+min; }
+function clearAllSpawns(){ if(spawnInterval){ clearInterval(spawnInterval); spawnInterval=null; } }
+
+/* ====== Game logic: spawn & draw ====== */
+function spawnTarget(){
+  targets.push({ x: rand(60,width-60), y: rand(120,height-120), r: rand(18,36), vx: rand(-1.8,1.8), vy: rand(-0.9,0.9), hue: Math.floor(rand(0,360)) });
+}
+function spawnCoin(){
+  coins.push({ x: rand(40,width-40), y: -30, r: rand(12,24), dy: rand(2.2,4.5), hue: Math.floor(rand(40,60)) });
+}
+
+function updateTargets(){
+  for(let t of targets){
+    t.x += t.vx; t.y += t.vy;
+    if(t.x < t.r || t.x > width - t.r) t.vx *= -1;
+    if(t.y < 120 || t.y > height - t.r - 60) t.vy *= -1;
+  }
+}
+function drawTargets(){
+  for(let t of targets){
+    ctx.beginPath();
+    ctx.fillStyle = `hsl(${t.hue} 70% 55%)`;
+    ctx.arc(t.x,t.y,t.r,0,Math.PI*2); ctx.fill();
+    ctx.closePath();
+  }
+}
+function updateCoins(){
+  for(let i=coins.length-1;i>=0;i--){
+    coins[i].y += coins[i].dy;
+    if(coins[i].y > height + 40) coins.splice(i,1);
+  }
+}
+function drawCoins(){
+  for(let c of coins){
+    ctx.beginPath();
+    ctx.fillStyle = `hsl(${c.hue} 95% 55%)`; ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.arc(c.x - c.r*0.15, c.y - c.r*0.25, c.r*0.12,0,Math.PI*2); ctx.fill(); ctx.closePath();
+  }
+}
+
+/* ====== Render loop ====== */
+function render(){
+  ctx.clearRect(0,0,width,height);
+  // background subtle
+  const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,'#07111a'); g.addColorStop(1,'#021018');
+  ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+
+  // HUD hints
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(0, height - 86, width, 86);
+
+  if(currentGame === 'shoot'){
+    updateTargets(); drawTargets();
+    ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText('Klik target untuk menembak (3 pts)', 18, height - 50);
+  } else {
+    updateCoins(); drawCoins();
+    ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText('Klik koin untuk menangkap (1 pt)', 18, height - 50);
+  }
+
+  animationId = requestAnimationFrame(render);
+}
+
+/* ====== Timer UI ====== */
+const CIRC = 2 * Math.PI * 45; // circumference for r=45
+function updateTimerUI(){
+  const pct = remaining / ROUND_DURATION;
+  const offset = CIRC - (CIRC * pct);
+  timerCircle.setAttribute('stroke-dashoffset', offset);
+  // color:
+  if(pct > 0.5) timerCircle.setAttribute('stroke', '#3ddc84');
+  else if(pct > 0.2) timerCircle.setAttribute('stroke', '#ffb020');
+  else timerCircle.setAttribute('stroke', '#ff4b4b');
+  timerText.textContent = remaining;
+  // pulse and sound in last seconds
+  if(remaining <= BEEP_START_SECONDS){
+    timerText.classList.add('pulse');
+  } else timerText.classList.remove('pulse');
+}
+
+/* ====== Round control ====== */
+function startRound(){
+  round++;
+  roundLabel.textContent = round;
+  modeLabel.textContent = currentGame === 'shoot' ? 'Tembak Target' : 'Tangkap Koin';
+  score = 0; scoreLabel.textContent = score;
+  remaining = ROUND_DURATION;
+  playing = true;
+  targets = []; coins = [];
+  clearAllSpawns();
+
+  if(currentGame === 'shoot'){
+    for(let i=0;i<5;i++) spawnTarget();
+    spawnInterval = setInterval(spawnTarget, 900);
+  } else {
+    for(let i=0;i<6;i++) spawnCoin();
+    spawnInterval = setInterval(spawnCoin, 700);
+  }
+
+  // start render if not running
+  if(!animationId) render();
+
+  // timer tick
+  updateTimerUI();
+  const tick = setInterval(() => {
+    if(!playing){ clearInterval(tick); return; }
+    remaining--;
+    // beep last seconds
+    if(remaining <= BEEP_START_SECONDS && remaining > 0){
+      try{ ensureAudio(); playBeep(880 - (BEEP_START_SECONDS-remaining)*120, 0.12); }catch(e){}
     }
-}
-
-// Update timer circle
-function updateTimerDisplay() {
-    let percent = timer / timerDuration;
-    let circle = document.getElementById("timerCircle");
-    let offset = 283 - (283 * percent);
-    circle.setAttribute("stroke-dashoffset", offset);
-    
-    if (percent > 0.5) circle.setAttribute("stroke", "green");
-    else if (percent > 0.2) circle.setAttribute("stroke", "orange");
-    else circle.setAttribute("stroke", "red");
-
-    let timerText = document.getElementById("timerText");
-    timerText.textContent = timer;
-    if (timer <= 3) {
-        timerText.classList.add("pulse");
-        beep.play();
-    } else {
-        timerText.classList.remove("pulse");
+    updateTimerUI();
+    if(remaining <= 0){
+      clearInterval(tick);
+      // end round
+      endRound();
     }
+  }, 1000);
 }
 
-// Start the timer
-function startTimer() {
-    timer = timerDuration;
-    updateTimerDisplay();
-    timerInterval = setInterval(() => {
-        timer--;
-        updateTimerDisplay();
-        if (timer <= 0) {
-            clearInterval(timerInterval);
-            gameOver.play();
-            showAd();
-        }
-    }, 1000);
+function endRound(){
+  playing = false;
+  clearAllSpawns();
+  // show ad overlay
+  adOverlay.style.display = 'flex';
+  console.log('Memanggil iklan...');
+  showAd(() => {
+    adOverlay.style.display = 'none';
+    // swap game and start next round (small delay)
+    currentGame = currentGame === 'shoot' ? 'catch' : 'shoot';
+    setTimeout(() => startRound(), 400);
+  });
 }
 
-// Show Giga ad then switch game
-function showAd() {
-    window.showGiga()
-    .then(() => {
-        currentGame = (currentGame === "shoot") ? "catch" : "shoot";
-        startGame();
-    })
-    .catch(e => {
-        currentGame = (currentGame === "shoot") ? "catch" : "shoot";
-        startGame();
-    });
+/* ====== Click handling (shoot / catch) ====== */
+canvas.addEventListener('click', (e) => {
+  if(!playing) return;
+  const x = e.clientX, y = e.clientY;
+  if(currentGame === 'shoot'){
+    // check targets
+    for(let i = targets.length -1; i >= 0; i--){
+      const t = targets[i];
+      const dist = Math.hypot(x - t.x, y - t.y);
+      if(dist <= t.r){
+        targets.splice(i,1);
+        score += 3;
+        scoreLabel.textContent = score;
+        // small visual feedback (we'll draw a quick particle)
+        spawnParticle(x,y,t.hue);
+        try{ ensureAudio(); playBeep(1200,0.08); }catch(e){}
+        break;
+      }
+    }
+  } else {
+    // check coins
+    for(let i = coins.length -1; i >= 0; i--){
+      const c = coins[i];
+      const dist = Math.hypot(x - c.x, y - c.y);
+      if(dist <= c.r){
+        coins.splice(i,1);
+        score += 1;
+        scoreLabel.textContent = score;
+        spawnParticle(x,y,c.hue);
+        try{ ensureAudio(); playBeep(900,0.09); }catch(e){}
+        break;
+      }
+    }
+  }
+});
+
+/* ====== Particles simple ====== */
+let particles = [];
+function spawnParticle(x,y,hue){
+  for(let i=0;i<10;i++){
+    particles.push({ x, y, vx: rand(-3,3), vy: rand(-3,1), life: rand(20,40), size: rand(2,6), hue });
+  }
+}
+function updateParticles(){
+  for(let i = particles.length -1; i >= 0; i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life--;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.beginPath();
+    ctx.fillStyle = `hsla(${p.hue} 90% 60% / ${Math.max(0,p.life/40)})`;
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); ctx.closePath();
+  }
+}
+// integrate particles into render
+const _origRender = render;
+render = function(){
+  ctx.clearRect(0,0,width,height);
+  const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,'#07111a'); g.addColorStop(1,'#021018');
+  ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+
+  if(currentGame === 'shoot'){
+    updateTargets(); drawTargets();
+    ctx.fillStyle = '#fff'; ctx.font='18px Arial'; ctx.fillText('Klik target untuk menembak (3 pts)', 18, height - 50);
+  } else {
+    updateCoins(); drawCoins();
+    ctx.fillStyle = '#fff'; ctx.font='18px Arial'; ctx.fillText('Klik koin untuk menangkap (1 pt)', 18, height - 50);
+  }
+
+  updateParticles(); drawParticles();
+  animationId = requestAnimationFrame(render);
+};
+
+/* ====== Ad wrapper ====== */
+function showAd(callback){
+  // show skip btn for manual testing (visible only in debug)
+  skipBtn.style.display = 'inline-block';
+  // if window.showGiga exists, call it
+  if(window.showGiga){
+    try {
+      console.log('Calling window.showGiga()');
+      window.showGiga()
+        .then(()=> { console.log('Giga ad closed (then)'); if(callback) callback(); })
+        .catch((e)=> { console.warn('Giga show rejected/caught', e); if(callback) callback(); });
+    } catch(err) { console.warn('showGiga() threw', err); if(callback) callback(); }
+  } else {
+    // fallback: simulate ad for 2.5s then callback
+    console.log('No showGiga found — using simulated ad (fallback)');
+    setTimeout(()=> { if(callback) callback(); }, 2500);
+  }
 }
 
-// Start game
-function startGame() {
-    drawGame();
-    startTimer();
-}
+/* ====== Start button & fullscreen & audio resume ====== */
+document.getElementById('btnStart').addEventListener('click', ()=> {
+  // request fullscreen (user gesture)
+  try{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }catch(e){}
+  // resume audio context (user gesture)
+  try{ ensureAudio(); if(audioCtx.state === 'suspended') audioCtx.resume(); }catch(e){ console.warn('audio resume', e); }
+  // hide overlay and begin
+  centerMessage.style.display = 'none';
+  // small delay then start
+  setTimeout(()=> startRound(), 260);
+});
 
-// Init
-startGame();
+// skip button for manual ad testing
+skipBtn.addEventListener('click', ()=>{
+  adOverlay.style.display = 'flex';
+  showAd(()=> { adOverlay.style.display = 'none'; });
+});
+
+// debug logs
+console.log('Script loaded. window.showGiga available?', !!window.showGiga);
+
 </script>
 </body>
 </html>
