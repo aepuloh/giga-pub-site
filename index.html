@@ -1,154 +1,168 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Iklan Giga.pub Auto + Countdown + Skip + Slideshow + Fade</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding-top: 30px;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Miner + Iklan Giga.pub</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #222;
+        color: #fff;
+        font-family: Arial, sans-serif;
     }
-    #countdown {
-      font-size: 20px;
-      font-weight: bold;
-      margin: 10px 0;
-      color: #ff5722;
+    canvas {
+        display: block;
+        background: url('https://i.ibb.co/3zSxj4X/mine-bg.jpg') center/cover no-repeat;
     }
-    #skipBtn {
-      margin-top: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #2196f3;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
+    #hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.5);
+        padding: 10px;
+        border-radius: 10px;
     }
-    #skipBtn:hover {
-      background-color: #1976d2;
+    #btnRestart {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 15px 25px;
+        font-size: 20px;
+        background: gold;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        display: none;
     }
-    #preview-iklan {
-      margin: 20px auto;
-      width: 300px;
-      height: 200px;
-      border: 2px solid #ccc;
-      border-radius: 10px;
-      overflow: hidden;
-      position: relative;
-    }
-    #preview-iklan img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      position: absolute;
-      top: 0;
-      left: 0;
-      opacity: 0;
-      transition: opacity 1s ease-in-out;
-    }
-    #preview-iklan img.active {
-      opacity: 1;
-    }
-  </style>
+</style>
 </head>
 <body>
 
-  <h1>Selamat Datang</h1>
-  <p>Iklan akan muncul otomatis setiap <b>20 detik</b>.</p>
+<div id="hud">
+    ⛏ Koin: <span id="score">0</span> | ⏳ Waktu: <span id="time">30</span>d
+</div>
+<button id="btnRestart">Main Lagi</button>
 
-  <div id="preview-iklan">
-    <img id="iklan-img-1" src="" alt="Iklan" class="active">
-    <img id="iklan-img-2" src="" alt="Iklan">
-  </div>
+<canvas id="gameCanvas"></canvas>
 
-  <div id="countdown">Menunggu 20 detik...</div>
-  <button id="skipBtn">Tampilkan Sekarang</button>
+<!-- Script iklan Giga.pub -->
+<script src="https://ad.gigapub.tech/script?id=1511"></script>
 
-  <!-- Script iklan Giga.pub -->
-  <script src="https://ad.gigapub.tech/script?id=1511"></script>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-  <script>
-    let waktu = 20; // detik countdown
-    let countdownEl = document.getElementById('countdown');
-    let skipBtn = document.getElementById('skipBtn');
-    let img1 = document.getElementById('iklan-img-1');
-    let img2 = document.getElementById('iklan-img-2');
-    let aktif = 1; // gambar aktif sekarang
-    let timerCountdown;
-    let timerSlideshow;
+let score = 0;
+let timeLeft = 30;
+let isPlaying = true;
+let player = { x: canvas.width/2, y: canvas.height/2, r: 20 };
 
-    const gambarIklan = [
-      "https://picsum.photos/seed/iklan1/300/200",
-      "https://picsum.photos/seed/iklan2/300/200",
-      "https://picsum.photos/seed/iklan3/300/200",
-      "https://picsum.photos/seed/iklan4/300/200",
-      "https://picsum.photos/seed/iklan5/300/200"
-    ];
+function drawPlayer() {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
+    ctx.fillStyle = "gold";
+    ctx.fill();
+    ctx.closePath();
+}
 
-    function gantiGambarIklan() {
-      let randomIndex = Math.floor(Math.random() * gambarIklan.length);
-      if (aktif === 1) {
-        img2.src = gambarIklan[randomIndex];
-        img2.classList.add('active');
-        img1.classList.remove('active');
-        aktif = 2;
-      } else {
-        img1.src = gambarIklan[randomIndex];
-        img1.classList.add('active');
-        img2.classList.remove('active');
-        aktif = 1;
-      }
-    }
+function drawCoin(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI*2);
+    ctx.fillStyle = "yellow";
+    ctx.fill();
+    ctx.closePath();
+}
 
-    function mulaiCountdown() {
-      img1.src = gambarIklan[Math.floor(Math.random() * gambarIklan.length)];
-      img2.src = gambarIklan[Math.floor(Math.random() * gambarIklan.length)];
-      countdownEl.textContent = "Menunggu " + waktu + " detik...";
+let coins = [];
+function spawnCoin() {
+    let x = Math.random() * canvas.width;
+    let y = Math.random() * canvas.height;
+    coins.push({x, y});
+}
 
-      timerCountdown = setInterval(() => {
-        waktu--;
-        countdownEl.textContent = "Menunggu " + waktu + " detik...";
-        
-        if (waktu <= 0) {
-          clearInterval(timerCountdown);
-          clearInterval(timerSlideshow);
-          tampilkanIklan();
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawPlayer();
+    coins.forEach((c, i) => {
+        drawCoin(c.x, c.y);
+        let dx = c.x - player.x;
+        let dy = c.y - player.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist < player.r + 10) {
+            coins.splice(i, 1);
+            score++;
+            document.getElementById('score').textContent = score;
+            if(score % 50 === 0) showAd(); // Iklan bonus tiap 50 koin
         }
-      }, 1000);
-
-      timerSlideshow = setInterval(() => {
-        gantiGambarIklan();
-      }, 5000);
-    }
-
-    function tampilkanIklan() {
-      window.showGiga()
-        .then(() => {
-          console.log("Iklan berhasil ditampilkan");
-          resetCountdown();
-        })
-        .catch(e => {
-          console.error("Iklan gagal dimuat:", e);
-          resetCountdown();
-        });
-    }
-
-    function resetCountdown() {
-      waktu = 20;
-      mulaiCountdown();
-    }
-
-    skipBtn.addEventListener('click', () => {
-      clearInterval(timerCountdown);
-      clearInterval(timerSlideshow);
-      tampilkanIklan();
     });
+}
 
-    // Mulai pertama kali
-    mulaiCountdown();
-  </script>
+function gameLoop() {
+    if(isPlaying) {
+        update();
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+canvas.addEventListener('click', e => {
+    player.x = e.clientX;
+    player.y = e.clientY;
+});
+
+function timerTick() {
+    if(timeLeft > 0 && isPlaying) {
+        timeLeft--;
+        document.getElementById('time').textContent = timeLeft;
+        setTimeout(timerTick, 1000);
+    } else {
+        endGame();
+    }
+}
+
+function endGame() {
+    isPlaying = false;
+    showAd(() => {
+        document.getElementById('btnRestart').style.display = 'block';
+    });
+}
+
+function restartGame() {
+    score = 0;
+    timeLeft = 30;
+    coins = [];
+    document.getElementById('score').textContent = score;
+    document.getElementById('time').textContent = timeLeft;
+    document.getElementById('btnRestart').style.display = 'none';
+    isPlaying = true;
+    spawnCoin();
+    timerTick();
+    gameLoop();
+}
+
+// Fungsi tampilkan iklan Giga.pub
+function showAd(callback) {
+    if(window.showGiga) {
+        window.showGiga()
+        .then(() => { if(callback) callback(); })
+        .catch(() => { if(callback) callback(); });
+    } else {
+        if(callback) callback();
+    }
+}
+
+setInterval(spawnCoin, 1000);
+restartGame();
+
+document.getElementById('btnRestart').addEventListener('click', () => {
+    showAd(() => restartGame());
+});
+</script>
 
 </body>
 </html>
