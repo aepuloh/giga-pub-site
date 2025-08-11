@@ -1,41 +1,154 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GigaPub Auto Ads</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iklan Giga.pub Auto + Countdown + Skip + Slideshow + Fade</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      padding: 50px;
+      padding-top: 30px;
     }
-    h1 {
-      color: #333;
+    #countdown {
+      font-size: 20px;
+      font-weight: bold;
+      margin: 10px 0;
+      color: #ff5722;
     }
-    .note {
-      color: #666;
-      font-size: 14px;
+    #skipBtn {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #skipBtn:hover {
+      background-color: #1976d2;
+    }
+    #preview-iklan {
+      margin: 20px auto;
+      width: 300px;
+      height: 200px;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    #preview-iklan img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    }
+    #preview-iklan img.active {
+      opacity: 1;
     }
   </style>
 </head>
 <body>
-  <h1>Selamat Datang</h1>
-  <p class="note">Iklan akan otomatis muncul setiap 20 detik.</p>
 
-  <!-- Script GigaPub pertama kali -->
-  <script src="https://ad.gigapub.tech/script?id=1512"></script>
+  <h1>Selamat Datang</h1>
+  <p>Iklan akan muncul otomatis setiap <b>20 detik</b>.</p>
+
+  <div id="preview-iklan">
+    <img id="iklan-img-1" src="" alt="Iklan" class="active">
+    <img id="iklan-img-2" src="" alt="Iklan">
+  </div>
+
+  <div id="countdown">Menunggu 20 detik...</div>
+  <button id="skipBtn">Tampilkan Sekarang</button>
+
+  <!-- Script iklan Giga.pub -->
+  <script src="https://ad.gigapub.tech/script?id=1511"></script>
 
   <script>
-    // Fungsi untuk memuat ulang iklan
-    function loadAd() {
-      var s = document.createElement("script");
-      s.src = "https://ad.gigapub.tech/script?id=1512&t=" + Date.now(); // Cache-busting
-      document.body.appendChild(s);
+    let waktu = 20; // detik countdown
+    let countdownEl = document.getElementById('countdown');
+    let skipBtn = document.getElementById('skipBtn');
+    let img1 = document.getElementById('iklan-img-1');
+    let img2 = document.getElementById('iklan-img-2');
+    let aktif = 1; // gambar aktif sekarang
+    let timerCountdown;
+    let timerSlideshow;
+
+    const gambarIklan = [
+      "https://picsum.photos/seed/iklan1/300/200",
+      "https://picsum.photos/seed/iklan2/300/200",
+      "https://picsum.photos/seed/iklan3/300/200",
+      "https://picsum.photos/seed/iklan4/300/200",
+      "https://picsum.photos/seed/iklan5/300/200"
+    ];
+
+    function gantiGambarIklan() {
+      let randomIndex = Math.floor(Math.random() * gambarIklan.length);
+      if (aktif === 1) {
+        img2.src = gambarIklan[randomIndex];
+        img2.classList.add('active');
+        img1.classList.remove('active');
+        aktif = 2;
+      } else {
+        img1.src = gambarIklan[randomIndex];
+        img1.classList.add('active');
+        img2.classList.remove('active');
+        aktif = 1;
+      }
     }
 
-    // Jalankan iklan otomatis setiap 20 detik
-    setInterval(loadAd, 20000); // 20000 ms = 20 detik
+    function mulaiCountdown() {
+      img1.src = gambarIklan[Math.floor(Math.random() * gambarIklan.length)];
+      img2.src = gambarIklan[Math.floor(Math.random() * gambarIklan.length)];
+      countdownEl.textContent = "Menunggu " + waktu + " detik...";
+
+      timerCountdown = setInterval(() => {
+        waktu--;
+        countdownEl.textContent = "Menunggu " + waktu + " detik...";
+        
+        if (waktu <= 0) {
+          clearInterval(timerCountdown);
+          clearInterval(timerSlideshow);
+          tampilkanIklan();
+        }
+      }, 1000);
+
+      timerSlideshow = setInterval(() => {
+        gantiGambarIklan();
+      }, 5000);
+    }
+
+    function tampilkanIklan() {
+      window.showGiga()
+        .then(() => {
+          console.log("Iklan berhasil ditampilkan");
+          resetCountdown();
+        })
+        .catch(e => {
+          console.error("Iklan gagal dimuat:", e);
+          resetCountdown();
+        });
+    }
+
+    function resetCountdown() {
+      waktu = 20;
+      mulaiCountdown();
+    }
+
+    skipBtn.addEventListener('click', () => {
+      clearInterval(timerCountdown);
+      clearInterval(timerSlideshow);
+      tampilkanIklan();
+    });
+
+    // Mulai pertama kali
+    mulaiCountdown();
   </script>
+
 </body>
 </html>
